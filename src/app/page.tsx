@@ -16,7 +16,13 @@ export default function HomePage() {
             </span>
           </div>
 
-          <nav className="flex items-center gap-3">
+          <nav className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/dashboard"
+              className="text-sm font-medium text-slate-700 hover:text-blue-600 px-3 py-1.5 transition-colors"
+            >
+              Dashboard
+            </Link>
             <Link
               href="/login"
               className="text-sm font-medium text-slate-700 hover:text-blue-600 px-3 py-1.5 transition-colors"
