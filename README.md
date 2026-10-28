@@ -119,8 +119,8 @@ flowchart TD
 
 ### 2. Clone Repository
 ```bash
-git clone https://github.com/DIPIKASARDAR2004/TaskFlow.git
-cd TaskFlow
+git clone https://github.com/DIPIKASARDAR2004/CodeAlpha_ProjectManagementTool.git
+cd CodeAlpha_ProjectManagementTool
 ```
 
 ### 3. Install Dependencies
@@ -174,5 +174,5 @@ npm run build
 - **Program:** CodeAlpha Internship
 - **Track:** Web Development
 - **Task:** Task 3 &mdash; Project Management Tool
-- **Repository:** [https://github.com/DIPIKASARDAR2004/TaskFlow](https://github.com/DIPIKASARDAR2004/TaskFlow)
+- **Repository:** [https://github.com/DIPIKASARDAR2004/CodeAlpha_ProjectManagementTool](https://github.com/DIPIKASARDAR2004/CodeAlpha_ProjectManagementTool)
 
