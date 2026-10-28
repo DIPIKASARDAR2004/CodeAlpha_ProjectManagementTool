@@ -70,7 +70,7 @@ export function KanbanBoard({
   const fetchData = useCallback(async () => {
     setError(null);
     try {
-      // 1. Fetch tasks
+      // 1. Fetch tasks with assignees and comment counts
       const { data: tasksData, error: tasksError } = await supabase
         .from("tasks")
         .select(
@@ -81,6 +81,9 @@ export function KanbanBoard({
             full_name,
             email,
             avatar_url
+          ),
+          comments (
+            id
           )
         `
         )

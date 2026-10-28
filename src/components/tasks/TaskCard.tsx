@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ export interface TaskItem {
   created_at: string;
   updated_at: string;
   profiles?: TaskAssignee | null;
+  comments?: Array<{ id: string }> | null;
 }
 
 interface TaskCardProps {
@@ -223,25 +225,37 @@ export function TaskCard({
 
       {/* Footer Info: Due Date & Assignee Avatar */}
       <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
-        {/* Due Date Indicator */}
-        {formattedDueDate ? (
-          <div
-            className={cn(
-              "flex items-center gap-1.5 font-medium",
-              isOverdue ? "text-rose-600" : "text-slate-500"
-            )}
-            title={isOverdue ? "Overdue" : "Due date"}
-          >
-            {isOverdue ? (
-              <AlertCircle className="h-3.5 w-3.5" />
-            ) : (
-              <Calendar className="h-3.5 w-3.5" />
-            )}
-            <span className="text-[11px]">{formattedDueDate}</span>
-          </div>
-        ) : (
-          <span className="text-[11px] text-slate-400">No due date</span>
-        )}
+        {/* Due Date & Comments Indicator */}
+        <div className="flex items-center gap-2.5">
+          {formattedDueDate ? (
+            <div
+              className={cn(
+                "flex items-center gap-1.5 font-medium",
+                isOverdue ? "text-rose-600" : "text-slate-500"
+              )}
+              title={isOverdue ? "Overdue" : "Due date"}
+            >
+              {isOverdue ? (
+                <AlertCircle className="h-3.5 w-3.5" />
+              ) : (
+                <Calendar className="h-3.5 w-3.5" />
+              )}
+              <span className="text-[11px]">{formattedDueDate}</span>
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-400">No due date</span>
+          )}
+
+          {task.comments && task.comments.length > 0 && (
+            <div
+              className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
+              title={`${task.comments.length} comment${task.comments.length > 1 ? "s" : ""}`}
+            >
+              <MessageSquare className="h-3 w-3" />
+              <span>{task.comments.length}</span>
+            </div>
+          )}
+        </div>
 
         {/* Assignee Avatar / Indicator */}
         {assigneeInitials ? (

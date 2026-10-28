@@ -13,6 +13,7 @@ import { useDashboard } from "@/components/dashboard/DashboardContext";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
+import { ManageMembersModal } from "@/components/projects/ManageMembersModal";
 import { createClient } from "@/lib/supabase/client";
 import { Project, ProjectMember } from "@/lib/mock-data";
 
@@ -22,16 +23,26 @@ interface PageProps {
 
 export default function ProjectWorkspacePage({ params }: PageProps) {
   const { projectId } = use(params);
-  const { getProjectById, isLoading: isDashboardLoading } = useDashboard();
+  const {
+    getProjectById,
+    isLoading: isDashboardLoading,
+    refreshProjects,
+  } = useDashboard();
   const [taskStats, setTaskStats] = useState<{
     total: number;
     completed: number;
   } | null>(null);
+  const [isManageMembersOpen, setIsManageMembersOpen] = useState(false);
 
   const contextProject = getProjectById(projectId);
   const [directProject, setDirectProject] = useState<Project | null>(null);
   const [isDirectLoading, setIsDirectLoading] = useState(false);
   const [directFetchAttempted, setDirectFetchAttempted] = useState(false);
+
+  const handleMembersUpdated = () => {
+    refreshProjects();
+    setDirectFetchAttempted(false);
+  };
 
   // Fallback: If project not found in Dashboard context, fetch directly from Supabase
   useEffect(() => {
@@ -336,23 +347,36 @@ export default function ProjectWorkspacePage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Member Avatars */}
-          <div className="flex items-center gap-3 md:justify-end">
-            <span className="text-xs text-slate-500 font-medium">Contributors:</span>
-            <div className="flex items-center -space-x-2">
-              {project.members.map((member) => (
-                <div
-                  key={member.id}
-                  title={`${member.name} • ${member.role}`}
-                  className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ring-2 ring-white shadow-xs select-none transition-transform hover:scale-110 hover:z-10",
-                    member.avatarBg
-                  )}
-                >
-                  {member.initials}
-                </div>
-              ))}
+          {/* Member Avatars & Manage Team Button */}
+          <div className="flex items-center gap-3 md:justify-end flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium">Contributors:</span>
+              <div className="flex items-center -space-x-2">
+                {project.members.map((member) => (
+                  <div
+                    key={member.id}
+                    title={`${member.name} • ${member.role}`}
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ring-2 ring-white shadow-xs select-none transition-transform hover:scale-110 hover:z-10",
+                      member.avatarBg
+                    )}
+                  >
+                    {member.initials}
+                  </div>
+                ))}
+              </div>
             </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsManageMembersOpen(true)}
+              className="h-8 px-2.5 text-xs font-semibold gap-1.5"
+            >
+              <Users className="h-3.5 w-3.5 text-blue-600" />
+              <span>Manage Team</span>
+            </Button>
           </div>
         </div>
       </section>
@@ -366,6 +390,15 @@ export default function ProjectWorkspacePage({ params }: PageProps) {
           }
         />
       </section>
+
+      {/* Manage Team Members Modal */}
+      <ManageMembersModal
+        isOpen={isManageMembersOpen}
+        onClose={() => setIsManageMembersOpen(false)}
+        projectId={projectId}
+        projectName={project.name}
+        onMembersUpdated={handleMembersUpdated}
+      />
     </div>
   );
 }

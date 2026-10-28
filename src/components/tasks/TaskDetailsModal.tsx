@@ -11,6 +11,7 @@ import { TaskItem } from "./TaskCard";
 import { ProjectMemberOption } from "./CreateTaskModal";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { TaskCommentSection } from "./TaskCommentSection";
 
 interface TaskDetailsModalProps {
   task: TaskItem | null;
@@ -178,7 +179,7 @@ export function TaskDetailsModal({
       />
 
       {/* Modal Dialog Card */}
-      <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 sm:p-7 shadow-xl border border-slate-200 transition-all z-10 space-y-5">
+      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 sm:p-7 shadow-xl border border-slate-200 transition-all z-10 space-y-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -310,6 +311,9 @@ export function TaskDetailsModal({
             </div>
           </div>
         </div>
+
+        {/* Activity & Threaded Comments */}
+        <TaskCommentSection taskId={task.id} />
 
         {/* Footer info: creation date & delete action */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-100 text-xs text-slate-400">
