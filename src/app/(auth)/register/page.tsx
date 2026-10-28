@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   User,
   Mail,
@@ -11,9 +12,11 @@ import {
   CheckCircle2,
   Check,
   ArrowRight,
+  AlertCircle,
 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { createClient } from "@/lib/supabase/client";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -26,6 +29,8 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const supabase = createClient();
 
   // Errors state
   const [errors, setErrors] = useState<{
@@ -34,8 +39,13 @@ export default function RegisterPage() {
     password?: string;
     confirmPassword?: string;
   }>({});
+  const [serverError, setServerError] = useState<string | null>(null);
 
-  const [isSuccess, setIsSuccess] = useState(false);
+  // Success state: distinguishes whether email confirmation is required
+  const [registrationSuccess, setRegistrationSuccess] = useState<{
+    needsEmailConfirmation: boolean;
+    email: string;
+  } | null>(null);
 
   // Password rules validation for visual helper
   const hasMinLength = formData.password.length >= 8;
@@ -84,19 +94,59 @@ export default function RegisterPage() {
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
+    if (serverError) setServerError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setServerError(null);
+
     if (!validate()) return;
 
     setIsLoading(true);
 
-    // Simulate backend user creation latency
-    setTimeout(() => {
+    try {
+      const emailRedirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback`
+          : undefined;
+
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email.trim(),
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name.trim(),
+          },
+          emailRedirectTo,
+        },
+      });
+
+      if (error) {
+        setServerError(error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      // If session is returned immediately (email confirmation disabled in Supabase project)
+      if (data.session) {
+        router.push("/dashboard");
+        router.refresh();
+        return;
+      }
+
+      // If user created but session requires email confirmation
+      setRegistrationSuccess({
+        needsEmailConfirmation: true,
+        email: formData.email.trim(),
+      });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create account. Please try again.";
+      setServerError(message);
+    } finally {
       setIsLoading(false);
-      setIsSuccess(true);
-    }, 1200);
+    }
   };
 
   return (
@@ -111,8 +161,22 @@ export default function RegisterPage() {
         </p>
       </div>
 
+      {/* Server Error Alert */}
+      {serverError && (
+        <div
+          role="alert"
+          className="mb-5 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800 flex items-start gap-2.5 animate-in fade-in"
+        >
+          <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-red-900">Registration failed</p>
+            <p className="mt-0.5 text-red-700 leading-relaxed">{serverError}</p>
+          </div>
+        </div>
+      )}
+
       {/* Success State */}
-      {isSuccess ? (
+      {registrationSuccess ? (
         <div className="text-center py-4 space-y-4 animate-in fade-in">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
             <CheckCircle2 className="h-8 w-8" />
@@ -121,11 +185,12 @@ export default function RegisterPage() {
             <h2 className="text-lg font-semibold text-slate-900">
               Account Created Successfully!
             </h2>
-            <p className="text-sm text-slate-600 mt-1 max-w-xs mx-auto">
-              Your mock account for <span className="font-medium text-slate-900">{formData.email}</span> has been set up.
-            </p>
-            <p className="text-xs text-slate-400 mt-2">
-              (Backend authentication will be integrated in a future step.)
+            <p className="text-sm text-slate-600 mt-1.5 max-w-xs mx-auto leading-relaxed">
+              We&apos;ve sent a verification link to{" "}
+              <span className="font-semibold text-slate-900">
+                {registrationSuccess.email}
+              </span>
+              . Please check your inbox to confirm your account.
             </p>
           </div>
           <div className="pt-2">
@@ -299,4 +364,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-

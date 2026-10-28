@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, FolderPlus } from "lucide-react";
+import { X, FolderPlus, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
@@ -13,7 +13,7 @@ interface CreateProjectModalProps {
     description: string;
     category: string;
     priority: "High" | "Medium" | "Low";
-  }) => void;
+  }) => Promise<void> | void;
 }
 
 export function CreateProjectModal({
@@ -30,7 +30,7 @@ export function CreateProjectModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setError("Project name is required");
@@ -38,10 +38,10 @@ export function CreateProjectModal({
     }
 
     setIsSubmitting(true);
+    setError(null);
 
-    // Simulate mock project creation
-    setTimeout(() => {
-      onCreate({
+    try {
+      await onCreate({
         name: name.trim(),
         description:
           description.trim() || "No description provided for this project.",
@@ -49,13 +49,18 @@ export function CreateProjectModal({
         priority,
       });
 
-      // Reset
+      // Reset on success
       setName("");
       setDescription("");
       setError(null);
-      setIsSubmitting(false);
       onClose();
-    }, 400);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to create project. Please try again.";
+      setError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -100,28 +105,54 @@ export function CreateProjectModal({
           </button>
         </div>
 
-        {/* Form Body */}
+        {/* Error Alert */}
+        {error && (
+          <div
+            role="alert"
+            className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 flex items-start gap-2"
+          >
+            <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+            <p className="font-medium">{error}</p>
+          </div>
+        )}
+
+        {/* Form */}
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <Input
-            id="new-project-name"
-            name="name"
+            id="project-name"
             label="Project Name"
-            placeholder="e.g. Website Overhaul Q1"
-            required
+            placeholder="e.g. Website Redesign"
             value={name}
             onChange={(e) => {
               setName(e.target.value);
               if (error) setError(null);
             }}
-            error={error || undefined}
+            required
+            autoFocus
           />
 
-          {/* Category & Priority Selectors */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5 text-left">
+          <div>
+            <label
+              htmlFor="project-desc"
+              className="block text-xs font-semibold text-slate-700 mb-1"
+            >
+              Description (Optional)
+            </label>
+            <textarea
+              id="project-desc"
+              rows={3}
+              placeholder="What is the objective of this project?"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <label
                 htmlFor="project-category"
-                className="block text-sm font-medium text-slate-700"
+                className="block text-xs font-semibold text-slate-700 mb-1"
               >
                 Category
               </label>
@@ -129,20 +160,19 @@ export function CreateProjectModal({
                 id="project-category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-900 transition-all focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
               >
-                <option value="Design & UX">Design & UX</option>
                 <option value="Development">Development</option>
+                <option value="Design">Design</option>
                 <option value="Marketing">Marketing</option>
-                <option value="Infrastructure">Infrastructure</option>
                 <option value="Operations">Operations</option>
               </select>
             </div>
 
-            <div className="space-y-1.5 text-left">
+            <div>
               <label
                 htmlFor="project-priority"
-                className="block text-sm font-medium text-slate-700"
+                className="block text-xs font-semibold text-slate-700 mb-1"
               >
                 Priority
               </label>
@@ -152,39 +182,21 @@ export function CreateProjectModal({
                 onChange={(e) =>
                   setPriority(e.target.value as "High" | "Medium" | "Low")
                 }
-                className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-900 transition-all focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
               >
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
               </select>
             </div>
           </div>
 
-          {/* Description Textarea */}
-          <div className="space-y-1.5 text-left">
-            <label
-              htmlFor="new-project-desc"
-              className="block text-sm font-medium text-slate-700"
-            >
-              Description
-            </label>
-            <textarea
-              id="new-project-desc"
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Outline project objectives, key milestones, and scope..."
-              className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 resize-none"
-            />
-          </div>
-
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
             <Button
               type="button"
               variant="outline"
-              size="md"
+              size="sm"
               onClick={onClose}
               disabled={isSubmitting}
             >
@@ -193,7 +205,7 @@ export function CreateProjectModal({
             <Button
               type="submit"
               variant="primary"
-              size="md"
+              size="sm"
               isLoading={isSubmitting}
             >
               {isSubmitting ? "Creating..." : "Create Project"}
@@ -204,4 +216,3 @@ export function CreateProjectModal({
     </div>
   );
 }
-

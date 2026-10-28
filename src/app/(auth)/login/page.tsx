@@ -1,22 +1,41 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight,
+} from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { createClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
-  // Validation state
+  // Validation & alerts
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-  const [mockSuccess, setMockSuccess] = useState<string | null>(null);
-  const [forgotPasswordNotice, setForgotPasswordNotice] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
+  const [showResetForm, setShowResetForm] = useState(false);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = createClient();
+
+  // Check if routed from auth callback failure
+  const callbackError = searchParams.get("error");
 
   const validate = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -37,17 +56,72 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMockSuccess(null);
+    setServerError(null);
 
     if (!validate()) return;
 
     setIsLoading(true);
 
-    // Simulate backend auth latency
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        setServerError(error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.session) {
+        router.push("/dashboard");
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to sign in. Please try again.";
+      setServerError(message);
       setIsLoading(false);
-      setMockSuccess(`Welcome back! Authenticated as ${email} (Mock Mode).`);
-    }, 1200);
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setServerError(null);
+    setResetSuccessMessage(null);
+
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErrors((prev) => ({ ...prev, email: "Please enter your email address first" }));
+      return;
+    }
+
+    setIsResettingPassword(true);
+
+    try {
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback?next=/dashboard`
+          : undefined;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo,
+      });
+
+      if (error) {
+        setServerError(error.message);
+      } else {
+        setResetSuccessMessage(
+          `Password reset instructions have been sent to ${email.trim()}.`
+        );
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Unable to send reset instructions.";
+      setServerError(message);
+    } finally {
+      setIsResettingPassword(false);
+    }
   };
 
   return (
@@ -62,55 +136,80 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Mock Success Banner */}
-      {mockSuccess && (
+      {/* Callback error warning */}
+      {callbackError === "auth_callback_failed" && !serverError && (
         <div
-          role="status"
-          className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm text-emerald-800 flex items-start gap-3 animate-in fade-in"
+          role="alert"
+          className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800 flex items-start gap-2.5 animate-in fade-in"
         >
-          <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
-          <div className="space-y-1.5 flex-1">
-            <p className="font-semibold text-emerald-900">Sign in successful!</p>
-            <p className="text-emerald-700 text-xs leading-relaxed">{mockSuccess}</p>
-            <div className="pt-1">
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                Go to Dashboard
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-            <p className="text-slate-500 text-[11px] pt-1">
-              * Frontend mock active. Supabase Auth will be wired in a future step.
+          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-amber-900">Authentication link expired</p>
+            <p className="mt-0.5 text-amber-700 leading-relaxed">
+              The sign-in or verification link was invalid or has expired. Please sign in with your email and password.
             </p>
           </div>
         </div>
       )}
 
-      {/* Forgot Password Notice Modal / Banner */}
-      {forgotPasswordNotice && (
+      {/* Server Error Alert */}
+      {serverError && (
         <div
-          role="region"
-          aria-label="Forgot password notice"
-          className="mb-6 rounded-xl border border-blue-200 bg-blue-50/80 p-4 text-xs text-blue-800 flex items-start gap-3"
+          role="alert"
+          className="mb-5 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800 flex items-start gap-2.5 animate-in fade-in"
         >
-          <AlertCircle className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+          <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-medium text-blue-900">Reset Password (UI Mock)</p>
-            <p className="mt-0.5 text-blue-700">
-              Password recovery will send email reset links once Supabase Auth is enabled.
-            </p>
+            <p className="font-semibold text-red-900">Sign in failed</p>
+            <p className="mt-0.5 text-red-700 leading-relaxed">{serverError}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setForgotPasswordNotice(false)}
-            className="text-blue-500 hover:text-blue-700 text-xs font-semibold underline ml-1"
-          >
-            Dismiss
-          </button>
         </div>
       )}
+
+      {/* Reset Password Success Alert */}
+      {resetSuccessMessage && (
+        <div
+          role="status"
+          className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-800 flex items-start gap-2.5 animate-in fade-in"
+        >
+          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-emerald-900">Check your email</p>
+            <p className="mt-0.5 text-emerald-700 leading-relaxed">
+              {resetSuccessMessage}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Password Reset Drawer / Notice */}
+      {showResetForm ? (
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50/80 p-4 text-xs text-blue-900 animate-in fade-in">
+          <p className="font-semibold mb-1">Reset Password</p>
+          <p className="text-blue-700 mb-3">
+            Enter your email address above, then click the button below to receive recovery instructions.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handlePasswordReset}
+              isLoading={isResettingPassword}
+              className="text-xs h-8"
+            >
+              Send Reset Link
+            </Button>
+            <button
+              type="button"
+              onClick={() => setShowResetForm(false)}
+              className="text-blue-600 hover:text-blue-800 text-xs font-medium ml-2"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Form */}
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
@@ -127,6 +226,7 @@ export default function LoginPage() {
           onChange={(e) => {
             setEmail(e.target.value);
             if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+            if (serverError) setServerError(null);
           }}
           error={errors.email}
           icon={<Mail className="h-4 w-4" />}
@@ -145,6 +245,7 @@ export default function LoginPage() {
           onChange={(e) => {
             setPassword(e.target.value);
             if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }));
+            if (serverError) setServerError(null);
           }}
           error={errors.password}
           icon={<Lock className="h-4 w-4" />}
@@ -183,7 +284,7 @@ export default function LoginPage() {
 
           <button
             type="button"
-            onClick={() => setForgotPasswordNotice(true)}
+            onClick={() => setShowResetForm(true)}
             className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline focus:outline-none focus:underline"
           >
             Forgot password?
@@ -219,3 +320,10 @@ export default function LoginPage() {
   );
 }
 
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}

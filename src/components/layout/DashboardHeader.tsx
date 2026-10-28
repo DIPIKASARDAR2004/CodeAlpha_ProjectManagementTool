@@ -3,6 +3,7 @@
 import React from "react";
 import { Menu, Search, Bell, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 interface DashboardHeaderProps {
   onOpenMobileSidebar: () => void;
@@ -17,13 +18,29 @@ export function DashboardHeader({
   onSearchChange,
   onOpenCreateModal,
 }: DashboardHeaderProps) {
+  const { user, profile } = useAuth();
+
+  const displayName =
+    profile?.full_name ||
+    user?.user_metadata?.full_name ||
+    user?.email?.split("@")[0] ||
+    "User";
+
+  const initials = displayName
+    .split(" ")
+    .map((n: string) => n[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "U";
+
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-x-4 border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-md sm:gap-x-6 sm:px-6 lg:px-8">
       {/* Mobile Hamburger Button */}
       <button
         type="button"
         onClick={onOpenMobileSidebar}
-        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 lg:hidden"
+        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 lg:hidden cursor-pointer"
         aria-label="Open sidebar"
       >
         <Menu className="h-5 w-5" />
@@ -61,7 +78,7 @@ export function DashboardHeader({
         {/* Notifications Icon (Mock) */}
         <button
           type="button"
-          className="relative rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="relative rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
           aria-label="Notifications"
           title="Notifications (0 unread)"
         >
@@ -69,15 +86,14 @@ export function DashboardHeader({
           <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-blue-600" />
         </button>
 
-        {/* User Avatar Placeholder */}
+        {/* Real User Avatar Initials */}
         <div
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white shadow-xs cursor-pointer ring-2 ring-blue-100"
-          title="Alex Johnson (Product Lead)"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white shadow-xs cursor-pointer ring-2 ring-blue-100 select-none"
+          title={`${displayName} (${profile?.email || user?.email || ""})`}
         >
-          AJ
+          {initials}
         </div>
       </div>
     </header>
   );
 }
-
