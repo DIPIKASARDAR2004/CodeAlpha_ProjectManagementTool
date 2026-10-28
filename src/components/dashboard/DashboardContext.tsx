@@ -95,7 +95,7 @@ export function DashboardProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -159,6 +159,8 @@ export function DashboardProvider({
   }, []);
 
   const fetchProjects = useCallback(async () => {
+    if (authLoading) return;
+
     if (!user) {
       setProjects([]);
       setIsLoading(false);
@@ -211,7 +213,7 @@ export function DashboardProvider({
     } finally {
       setIsLoading(false);
     }
-  }, [user, supabase, formatProject]);
+  }, [user, authLoading, supabase, formatProject]);
 
   useEffect(() => {
     fetchProjects();
@@ -312,7 +314,7 @@ export function DashboardProvider({
         isCreateModalOpen,
         setIsCreateModalOpen,
         projects,
-        isLoading,
+        isLoading: authLoading || isLoading,
         error,
         refreshProjects: fetchProjects,
         createProject,

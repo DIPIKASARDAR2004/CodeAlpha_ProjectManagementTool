@@ -1,20 +1,20 @@
 "use client";
 
-import React, { use } from "react";
+import React, { use, useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
-  Clock,
-  KanbanSquare,
-  Sparkles,
   Users,
   AlertCircle,
 } from "lucide-react";
 import { useDashboard } from "@/components/dashboard/DashboardContext";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { KanbanBoard } from "@/components/tasks/KanbanBoard";
+import { createClient } from "@/lib/supabase/client";
+import { Project, ProjectMember } from "@/lib/mock-data";
 
 interface PageProps {
   params: Promise<{ projectId: string }>;
@@ -22,11 +22,146 @@ interface PageProps {
 
 export default function ProjectWorkspacePage({ params }: PageProps) {
   const { projectId } = use(params);
-  const { getProjectById, isLoading } = useDashboard();
+  const { getProjectById, isLoading: isDashboardLoading } = useDashboard();
+  const [taskStats, setTaskStats] = useState<{
+    total: number;
+    completed: number;
+  } | null>(null);
 
-  const project = getProjectById(projectId);
+  const contextProject = getProjectById(projectId);
+  const [directProject, setDirectProject] = useState<Project | null>(null);
+  const [isDirectLoading, setIsDirectLoading] = useState(false);
+  const [directFetchAttempted, setDirectFetchAttempted] = useState(false);
 
-  // Show Loading Skeleton while projects are being fetched from Supabase
+  // Fallback: If project not found in Dashboard context, fetch directly from Supabase
+  useEffect(() => {
+    if (!contextProject && !isDashboardLoading && !directFetchAttempted) {
+      let isMounted = true;
+      setIsDirectLoading(true);
+
+      const fetchDirect = async () => {
+        try {
+          const supabase = createClient();
+          const { data, error } = await supabase
+            .from("projects")
+            .select(
+              `
+              id,
+              title,
+              description,
+              owner_id,
+              created_at,
+              updated_at,
+              project_members (
+                id,
+                role,
+                user_id,
+                profiles (
+                  id,
+                  full_name,
+                  avatar_url,
+                  email
+                )
+              ),
+              tasks (
+                id,
+                status
+              )
+            `
+            )
+            .eq("id", projectId)
+            .single();
+
+          if (!isMounted) return;
+
+          if (!error && data) {
+            const rawTasks = (data.tasks as Array<{ id: string; status: string }>) || [];
+            const totalTasks = rawTasks.length;
+            const completedTasks = rawTasks.filter((t) => t.status === "done").length;
+
+            const status: "In Progress" | "Completed" | "Planning" =
+              totalTasks > 0 && completedTasks === totalTasks
+                ? "Completed"
+                : totalTasks === 0
+                ? "Planning"
+                : "In Progress";
+
+            interface RawMember {
+              id: string;
+              role: string;
+              user_id: string;
+              profiles: {
+                id: string;
+                full_name: string | null;
+                avatar_url: string | null;
+                email: string | null;
+              } | null;
+            }
+
+            const rawMembers = (data.project_members as unknown as RawMember[]) || [];
+            const members: ProjectMember[] = rawMembers.map((m) => {
+              const p = m.profiles;
+              const name = p?.full_name || p?.email?.split("@")[0] || "User";
+              const initials =
+                name
+                  .split(" ")
+                  .map((n: string) => n[0])
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase() || "U";
+
+              return {
+                id: m.id,
+                name,
+                initials,
+                avatarBg: "bg-blue-600 text-white",
+                role: m.role,
+              };
+            });
+
+            const createdDate = new Date(data.created_at);
+            const dueDateFormatted = createdDate.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            });
+
+            setDirectProject({
+              id: data.id,
+              name: data.title,
+              description: data.description || "No description provided.",
+              category: "Workspace",
+              status,
+              priority: "Medium",
+              totalTasks,
+              completedTasks,
+              dueDate: dueDateFormatted,
+              members,
+            });
+          }
+        } catch (err) {
+          console.error("Direct project fetch error:", err);
+        } finally {
+          if (isMounted) {
+            setIsDirectLoading(false);
+            setDirectFetchAttempted(true);
+          }
+        }
+      };
+
+      fetchDirect();
+
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [contextProject, isDashboardLoading, directFetchAttempted, projectId]);
+
+  const project = contextProject || directProject;
+  const isLoading = isDashboardLoading || (isDirectLoading && !project);
+
+  // Show Loading Skeleton while project is being fetched
   if (isLoading) {
     return (
       <div className="space-y-8 animate-pulse pb-12">
@@ -76,10 +211,11 @@ export default function ProjectWorkspacePage({ params }: PageProps) {
     );
   }
 
+  const totalTasks = taskStats !== null ? taskStats.total : project.totalTasks;
+  const completedTasks =
+    taskStats !== null ? taskStats.completed : project.completedTasks;
   const percentage =
-    project.totalTasks > 0
-      ? Math.round((project.completedTasks / project.totalTasks) * 100)
-      : 0;
+    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   const statusStyles = {
     "In Progress": "bg-blue-50 text-blue-700 border-blue-200",
@@ -189,7 +325,7 @@ export default function ProjectWorkspacePage({ params }: PageProps) {
                 Task Progression
               </span>
               <span className="font-bold text-slate-900">
-                {project.completedTasks} / {project.totalTasks} ({percentage}%)
+                {completedTasks} / {totalTasks} ({percentage}%)
               </span>
             </div>
             <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
@@ -221,179 +357,14 @@ export default function ProjectWorkspacePage({ params }: PageProps) {
         </div>
       </section>
 
-      {/* Task Board Placeholder Section */}
+      {/* Live Kanban Task Board */}
       <section aria-labelledby="taskboard-heading" className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-              <KanbanSquare className="h-4 w-4" />
-            </div>
-            <div>
-              <h2 id="taskboard-heading" className="text-lg font-bold text-slate-900">
-                Project Task Board
-              </h2>
-              <p className="text-xs text-slate-500">
-                Manage task workflows across statuses
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Feature Notice Banner */}
-        <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4 text-xs sm:text-sm text-blue-900 flex items-start gap-3">
-          <Sparkles className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-semibold text-blue-950">
-              Task Board Preview (Coming in Next Phase)
-            </p>
-            <p className="text-blue-800 text-xs leading-relaxed">
-              Full interactive drag-and-drop Kanban task boards, priority labels, task assignments, and threaded team comments will be connected in the upcoming task management feature.
-            </p>
-          </div>
-        </div>
-
-        {/* 3 Kanban Column Placeholders */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
-          {/* Column 1: To Do */}
-          <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-4 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                To Do
-              </span>
-              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                3
-              </span>
-            </div>
-
-            <div className="space-y-2.5">
-              <div className="rounded-lg border border-slate-200/80 bg-white p-3.5 shadow-2xs space-y-2">
-                <span className="rounded bg-amber-50 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold border border-amber-200">
-                  High Priority
-                </span>
-                <p className="text-xs font-semibold text-slate-800">
-                  User onboarding & verification flow
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> Due Soon
-                  </span>
-                  <div className="h-5 w-5 rounded-full bg-purple-600 text-[9px] font-bold text-white flex items-center justify-center">
-                    SC
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-slate-200/80 bg-white p-3.5 shadow-2xs space-y-2">
-                <span className="rounded bg-blue-50 text-blue-700 px-1.5 py-0.5 text-[10px] font-semibold border border-blue-200">
-                  Medium
-                </span>
-                <p className="text-xs font-semibold text-slate-800">
-                  Draft product launch release notes
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> In 5 days
-                  </span>
-                  <div className="h-5 w-5 rounded-full bg-amber-600 text-[9px] font-bold text-white flex items-center justify-center">
-                    ED
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Column 2: In Progress */}
-          <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-4 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">
-                In Progress
-              </span>
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                2
-              </span>
-            </div>
-
-            <div className="space-y-2.5">
-              <div className="rounded-lg border border-slate-200/80 bg-white p-3.5 shadow-2xs space-y-2">
-                <span className="rounded bg-blue-50 text-blue-700 px-1.5 py-0.5 text-[10px] font-semibold border border-blue-200">
-                  Medium
-                </span>
-                <p className="text-xs font-semibold text-slate-800">
-                  Implement responsive navigation drawer
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <span className="flex items-center gap-1 text-blue-600">
-                    <Clock className="h-3 w-3" /> Active
-                  </span>
-                  <div className="h-5 w-5 rounded-full bg-blue-600 text-[9px] font-bold text-white flex items-center justify-center">
-                    AJ
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-slate-200/80 bg-white p-3.5 shadow-2xs space-y-2">
-                <span className="rounded bg-rose-50 text-rose-700 px-1.5 py-0.5 text-[10px] font-semibold border border-rose-200">
-                  Critical
-                </span>
-                <p className="text-xs font-semibold text-slate-800">
-                  Review database indexing strategy
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <span className="flex items-center gap-1 text-blue-600">
-                    <Clock className="h-3 w-3" /> Active
-                  </span>
-                  <div className="h-5 w-5 rounded-full bg-rose-600 text-[9px] font-bold text-white flex items-center justify-center">
-                    DK
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Column 3: Done */}
-          <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-4 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
-                Done
-              </span>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                4
-              </span>
-            </div>
-
-            <div className="space-y-2.5">
-              <div className="rounded-lg border border-slate-200/80 bg-white p-3.5 shadow-2xs space-y-2">
-                <span className="rounded bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-[10px] font-semibold border border-emerald-200">
-                  Completed
-                </span>
-                <p className="text-xs font-semibold text-slate-800 line-through text-slate-500">
-                  Setup Next.js App Router repository
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <span className="text-emerald-600 font-medium">✓ Verified</span>
-                  <div className="h-5 w-5 rounded-full bg-emerald-600 text-[9px] font-bold text-white flex items-center justify-center">
-                    MS
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-slate-200/80 bg-white p-3.5 shadow-2xs space-y-2">
-                <span className="rounded bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-[10px] font-semibold border border-emerald-200">
-                  Completed
-                </span>
-                <p className="text-xs font-semibold text-slate-800 line-through text-slate-500">
-                  Create Sign In &amp; Sign Up pages
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <span className="text-emerald-600 font-medium">✓ Verified</span>
-                  <div className="h-5 w-5 rounded-full bg-blue-600 text-[9px] font-bold text-white flex items-center justify-center">
-                    AJ
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <KanbanBoard
+          projectId={projectId}
+          onTaskStatsChange={(total, completed) =>
+            setTaskStats({ total, completed })
+          }
+        />
       </section>
     </div>
   );
