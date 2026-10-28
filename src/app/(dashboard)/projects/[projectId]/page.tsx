@@ -22,7 +22,11 @@ interface PageProps {
 }
 
 export default function ProjectWorkspacePage({ params }: PageProps) {
-  const { projectId } = use(params);
+  const resolvedParams =
+    params && typeof (params as unknown as Promise<{ projectId: string }>).then === "function"
+      ? use(params)
+      : (params as unknown as { projectId: string });
+  const projectId = resolvedParams?.projectId || "";
   const {
     getProjectById,
     isLoading: isDashboardLoading,
@@ -33,6 +37,7 @@ export default function ProjectWorkspacePage({ params }: PageProps) {
     completed: number;
   } | null>(null);
   const [isManageMembersOpen, setIsManageMembersOpen] = useState(false);
+  const [membersRefreshKey, setMembersRefreshKey] = useState(0);
 
   const contextProject = getProjectById(projectId);
   const [directProject, setDirectProject] = useState<Project | null>(null);
@@ -42,6 +47,7 @@ export default function ProjectWorkspacePage({ params }: PageProps) {
   const handleMembersUpdated = () => {
     refreshProjects();
     setDirectFetchAttempted(false);
+    setMembersRefreshKey((k) => k + 1);
   };
 
   // Fallback: If project not found in Dashboard context, fetch directly from Supabase
@@ -385,6 +391,7 @@ export default function ProjectWorkspacePage({ params }: PageProps) {
       <section aria-labelledby="taskboard-heading" className="space-y-4">
         <KanbanBoard
           projectId={projectId}
+          membersRefreshKey={membersRefreshKey}
           onTaskStatsChange={(total, completed) =>
             setTaskStats({ total, completed })
           }

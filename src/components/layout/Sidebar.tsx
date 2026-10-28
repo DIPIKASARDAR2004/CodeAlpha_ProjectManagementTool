@@ -32,6 +32,9 @@ export function Sidebar({
 
   const isDashboard = activeItem ? activeItem === "dashboard" : pathname === "/dashboard";
   const isProjects = activeItem ? activeItem === "projects" : pathname.startsWith("/projects");
+  const isTasks = activeItem ? activeItem === "tasks" : pathname === "/tasks";
+  const isTeam = activeItem ? activeItem === "team" : pathname === "/team";
+  const isSettings = activeItem ? activeItem === "settings" : pathname === "/settings";
 
   const displayName =
     profile?.full_name ||
@@ -49,7 +52,13 @@ export function Sidebar({
     .join("")
     .toUpperCase() || "U";
 
-  const navigation = [
+  const navigation: Array<{
+    name: string;
+    href: string;
+    icon: typeof LayoutDashboard;
+    current: boolean;
+    badge?: string;
+  }> = [
     {
       name: "Dashboard",
       href: "/dashboard",
@@ -64,23 +73,21 @@ export function Sidebar({
     },
     {
       name: "My Tasks",
-      href: "#",
+      href: "/tasks",
       icon: CheckCircle2,
-      current: false,
-      badge: "Soon",
+      current: isTasks,
     },
     {
       name: "Team",
-      href: "#",
+      href: "/team",
       icon: Users,
-      current: false,
-      badge: "Soon",
+      current: isTeam,
     },
     {
       name: "Settings",
-      href: "#",
+      href: "/settings",
       icon: Settings,
-      current: false,
+      current: isSettings,
     },
   ];
 

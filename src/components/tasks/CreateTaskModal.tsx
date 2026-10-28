@@ -81,7 +81,7 @@ export function CreateTaskModal({
         .select(
           `
           *,
-          profiles:assigned_to (
+          profiles (
             id,
             full_name,
             email,
@@ -278,11 +278,17 @@ export function CreateTaskModal({
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-900 transition-all focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
               >
                 <option value="">Unassigned</option>
-                {members.map((member) => (
-                  <option key={member.userId} value={member.userId}>
-                    {member.name} ({member.role})
+                {members.length === 0 ? (
+                  <option value="" disabled>
+                    No project members found
                   </option>
-                ))}
+                ) : (
+                  members.map((member) => (
+                    <option key={member.userId} value={member.userId}>
+                      {member.name} ({member.role})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
           </div>

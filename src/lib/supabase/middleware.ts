@@ -14,70 +14,85 @@ export async function updateSession(request: NextRequest) {
     request,
   })
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
-  // If credentials are not yet configured, bypass gracefully without crashing
-  if (!supabaseUrl || !supabaseKey) {
+    // If credentials are not yet configured, bypass gracefully without crashing
+    if (!supabaseUrl || !supabaseKey) {
+      return supabaseResponse
+    }
+
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({
+            request,
+          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    })
+
+    // Safely retrieve authenticated user with resilient error handling
+    let user = null
+    try {
+      const { data, error } = await supabase.auth.getUser()
+      if (!error && data?.user) {
+        user = data.user
+      }
+    } catch {
+      // In case of invalid tokens, expired sessions, or network hiccups
+      user = null
+    }
+
+    const pathname = request.nextUrl.pathname
+
+    // Protected paths: /dashboard, /projects, /tasks, /team, /settings
+    const isProtectedPath =
+      pathname.startsWith('/dashboard') ||
+      pathname.startsWith('/projects') ||
+      pathname.startsWith('/tasks') ||
+      pathname.startsWith('/team') ||
+      pathname.startsWith('/settings')
+
+    // Auth paths: /login, /register, /signup
+    const isAuthPath =
+      pathname === '/login' || pathname === '/register' || pathname === '/signup'
+
+    // If user is not authenticated and attempts to visit a protected route, redirect to /login
+    if (isProtectedPath && !user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      const redirectResponse = NextResponse.redirect(url)
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value)
+      })
+      return redirectResponse
+    }
+
+    // If user is already authenticated and visits login/register, redirect to /dashboard
+    if (isAuthPath && user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      const redirectResponse = NextResponse.redirect(url)
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value)
+      })
+      return redirectResponse
+    }
+
+    return supabaseResponse
+  } catch (err) {
+    console.error('[Middleware] Unexpected middleware error caught gracefully:', err)
     return supabaseResponse
   }
-
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll()
-      },
-      setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-        supabaseResponse = NextResponse.next({
-          request,
-        })
-        cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, options)
-        )
-      },
-    },
-  })
-
-  // IMPORTANT: Calling getUser() validates and refreshes the user's session token.
-  // Do not place code between createServerClient and getUser().
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const pathname = request.nextUrl.pathname
-
-  // Protected paths: /dashboard, /projects/*
-  const isProtectedPath =
-    pathname.startsWith('/dashboard') || pathname.startsWith('/projects')
-
-  // Auth paths: /login, /register, /signup
-  const isAuthPath =
-    pathname === '/login' || pathname === '/register' || pathname === '/signup'
-
-  // If user is not authenticated and attempts to visit a protected route, redirect to /login
-  if (isProtectedPath && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    const redirectResponse = NextResponse.redirect(url)
-    supabaseResponse.cookies.getAll().forEach((cookie) => {
-      redirectResponse.cookies.set(cookie.name, cookie.value)
-    })
-    return redirectResponse
-  }
-
-  // If user is already authenticated and visits login/register, redirect to /dashboard
-  if (isAuthPath && user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    const redirectResponse = NextResponse.redirect(url)
-    supabaseResponse.cookies.getAll().forEach((cookie) => {
-      redirectResponse.cookies.set(cookie.name, cookie.value)
-    })
-    return redirectResponse
-  }
-
-  return supabaseResponse
 }

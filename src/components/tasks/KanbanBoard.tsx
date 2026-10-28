@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 interface KanbanBoardProps {
   projectId: string;
   onTaskStatsChange?: (total: number, completed: number) => void;
+  membersRefreshKey?: number;
 }
 
 interface RawProjectMember {
@@ -29,6 +30,7 @@ interface RawProjectMember {
 export function KanbanBoard({
   projectId,
   onTaskStatsChange,
+  membersRefreshKey = 0,
 }: KanbanBoardProps) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [members, setMembers] = useState<ProjectMemberOption[]>([]);
@@ -141,7 +143,7 @@ export function KanbanBoard({
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, membersRefreshKey]);
 
   // Handle moving task to a new status
   const handleMoveStatus = async (

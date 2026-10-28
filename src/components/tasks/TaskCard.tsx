@@ -257,13 +257,18 @@ export function TaskCard({
           )}
         </div>
 
-        {/* Assignee Avatar / Indicator */}
+        {/* Assignee Avatar & Name Indicator */}
         {assigneeInitials ? (
           <div
-            className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white shadow-2xs ring-2 ring-white"
+            className="flex items-center gap-1.5 min-w-0 max-w-[130px]"
             title={`Assigned to ${assigneeName}`}
           >
-            {assigneeInitials}
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[9px] font-bold text-white shadow-2xs ring-1 ring-white select-none">
+              {assigneeInitials}
+            </div>
+            <span className="text-[11px] font-medium text-slate-700 truncate">
+              {assigneeName}
+            </span>
           </div>
         ) : (
           <span className="text-[10px] text-slate-400 italic">Unassigned</span>

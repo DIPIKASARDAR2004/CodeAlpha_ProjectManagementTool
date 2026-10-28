@@ -1,10 +1,17 @@
 import { createBrowserClient } from '@supabase/ssr'
 
+let client: ReturnType<typeof createBrowserClient> | undefined
+
 /**
- * Creates a client-side Supabase client for use in Browser / React Client Components.
- * Reuses the browser's document.cookie storage automatically.
+ * Creates a client-side Supabase client singleton for use in Browser / React Client Components.
+ * Reuses the browser's document.cookie storage automatically and preserves reference equality
+ * across React component re-renders to prevent infinite dependency cascades.
  */
 export function createClient() {
+  if (client) {
+    return client
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -18,8 +25,10 @@ export function createClient() {
     }
   }
 
-  return createBrowserClient(
+  client = createBrowserClient(
     supabaseUrl || 'https://placeholder.supabase.co',
     supabaseKey || 'placeholder-anon-key'
   )
+
+  return client
 }

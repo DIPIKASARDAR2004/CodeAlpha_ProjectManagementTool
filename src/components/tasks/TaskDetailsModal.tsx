@@ -60,7 +60,7 @@ export function TaskDetailsModal({
         .select(
           `
           *,
-          profiles:assigned_to (
+          profiles (
             id,
             full_name,
             email,
@@ -72,7 +72,7 @@ export function TaskDetailsModal({
 
       if (updateError) throw new Error(updateError.message);
       setStatus(newStatus);
-      onUpdate(data as unknown as TaskItem);
+      onUpdate({ ...task, ...(data as unknown as TaskItem) });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to update status";
       setError(msg);
@@ -92,7 +92,7 @@ export function TaskDetailsModal({
         .select(
           `
           *,
-          profiles:assigned_to (
+          profiles (
             id,
             full_name,
             email,
@@ -104,7 +104,7 @@ export function TaskDetailsModal({
 
       if (updateError) throw new Error(updateError.message);
       setPriority(newPriority);
-      onUpdate(data as unknown as TaskItem);
+      onUpdate({ ...task, ...(data as unknown as TaskItem) });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to update priority";
       setError(msg);
@@ -125,7 +125,7 @@ export function TaskDetailsModal({
         .select(
           `
           *,
-          profiles:assigned_to (
+          profiles (
             id,
             full_name,
             email,
@@ -137,7 +137,7 @@ export function TaskDetailsModal({
 
       if (updateError) throw new Error(updateError.message);
       setAssignedTo(newAssignee);
-      onUpdate(data as unknown as TaskItem);
+      onUpdate({ ...task, ...(data as unknown as TaskItem) });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to update assignee";
       setError(msg);
@@ -292,11 +292,17 @@ export function TaskDetailsModal({
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
             >
               <option value="">Unassigned</option>
-              {members.map((member) => (
-                <option key={member.userId} value={member.userId}>
-                  {member.name}
+              {members.length === 0 ? (
+                <option value="" disabled>
+                  No project members found
                 </option>
-              ))}
+              ) : (
+                members.map((member) => (
+                  <option key={member.userId} value={member.userId}>
+                    {member.name} ({member.role})
+                  </option>
+                ))
+              )}
             </select>
           </div>
 

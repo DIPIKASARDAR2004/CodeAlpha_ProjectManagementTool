@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "node -e \"try { require('fs').unlinkSync('.next/package.json') } catch {}\"",
+    "predev": "node -e \"try { const fs = require('fs'); ['react-loadable-manifest.json', 'app-build-manifest.json', 'build-manifest.json', 'fallback-build-manifest.json', 'package.json'].forEach(f => { try { fs.unlinkSync('.next/' + f) } catch(e){} }); } catch {}\"",
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start",
